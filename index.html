@@ -1,0 +1,689 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Psych Outreach · Resilience</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{
+  color-scheme:light;
+  --bg:#e9efef;--surface:#fff;--surface2:#f3f7f7;
+  --border:#dae3e4;--border2:#c2cfd1;
+  --text:#14262b;--muted:#566f75;--muted2:#8ba0a5;
+  --accent:#0e6b73;--accent-h:#0a565d;--accent-bg:rgba(14,107,115,.08);--accent-bdr:rgba(14,107,115,.3);
+  --sel:#7a3e72;--sel-bg:rgba(122,62,114,.08);--sel-bdr:rgba(122,62,114,.32);
+  --st-new:#0e6b73;--st-contacted:#2f62c4;--st-replied:#1f8a4c;--st-meeting:#c27a0e;--st-no:#9b9b9b;
+  --ok:#1f8a4c;--warn:#c27a0e;--red:#b23b3b;
+  --r:9px;--rl:14px;
+  --sh:0 1px 3px rgba(20,38,43,.08),0 4px 16px rgba(20,38,43,.06);
+  --sans:'Instrument Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    color-scheme:dark;
+    --bg:#0f1a1c;--surface:#152325;--surface2:#1b2c2f;
+    --border:#28393c;--border2:#3a5054;
+    --text:#e5eeef;--muted:#9fb3b7;--muted2:#6d8488;
+    --accent:#4fb3bb;--accent-h:#6cc6cd;--accent-bg:rgba(79,179,187,.12);--accent-bdr:rgba(79,179,187,.35);
+    --sel:#d38dc8;--sel-bg:rgba(211,141,200,.12);--sel-bdr:rgba(211,141,200,.38);
+    --st-new:#4fb3bb;--st-contacted:#7aa2f0;--st-replied:#5cc58a;--st-meeting:#e3a948;--st-no:#7d8a8c;
+    --ok:#5cc58a;--warn:#e3a948;--red:#e07a7a;
+    --sh:0 1px 3px rgba(0,0,0,.3),0 4px 16px rgba(0,0,0,.25);
+  }
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;font-family:var(--sans);background:var(--bg);color:var(--text);font-size:13px;font-variant-numeric:tabular-nums}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+a{color:var(--accent)}
+#map{position:fixed;inset:0;z-index:0;background:var(--bg)}
+#map.picking{cursor:crosshair}
+.leaflet-tile-pane{filter:saturate(.75) brightness(1.03)}
+@media (prefers-color-scheme:dark){.leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.85) contrast(.9) saturate(.5)}}
+.leaflet-container{font-family:var(--sans)}
+.leaflet-tooltip{font:12px/1.4 var(--sans);background:var(--surface);color:var(--text);border-color:var(--border);box-shadow:var(--sh)}
+.leaflet-container a.leaflet-control-zoom-in,.leaflet-container a.leaflet-control-zoom-out{background:var(--surface);color:var(--text);border-color:var(--border)}
+
+/* Panel */
+.panel{position:fixed;top:calc(14px + env(safe-area-inset-top,0px));left:14px;bottom:calc(14px + env(safe-area-inset-bottom,0px));width:430px;z-index:1000;display:flex;flex-direction:column;gap:6px;pointer-events:none}
+.panel>*{pointer-events:auto}
+.panel.collapsed .tabs,.panel.collapsed .body{display:none}
+.hdr{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:12px 14px;box-shadow:var(--sh);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-shrink:0}
+.brand{display:flex;align-items:center;gap:10px}
+.logo{width:34px;height:34px;border-radius:50%;border:2px solid var(--accent);display:grid;place-items:center;color:var(--accent);font-size:17px;font-weight:600;flex-shrink:0}
+.title{font-size:14px;font-weight:700;letter-spacing:-.01em}
+.sub{font-size:11px;color:var(--muted);margin-top:1px}
+.hdr-actions{display:flex;gap:5px}
+.icon-btn{width:30px;height:30px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-size:14px;cursor:pointer;display:grid;place-items:center}
+.icon-btn:hover{color:var(--text);border-color:var(--border2)}
+.status-bar{display:flex;align-items:center;gap:8px;padding:7px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);font-size:11.5px;color:var(--muted);flex-shrink:0;box-shadow:var(--sh)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--muted2);flex-shrink:0}
+.dot.live{background:var(--ok)}.dot.load{background:var(--warn)}.dot.err{background:var(--red)}
+.tabs{display:flex;gap:2px;padding:3px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);flex-shrink:0;box-shadow:var(--sh)}
+.tab{flex:1;padding:7px 4px;font-size:12px;font-weight:600;border-radius:7px;border:0;background:transparent;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px}
+.tab:hover{color:var(--text)}
+.tab.active{background:var(--surface2);color:var(--text);box-shadow:inset 0 0 0 1px var(--border)}
+.badge{background:var(--sel);color:#fff;border-radius:999px;padding:0 6px;font-size:10px;font-weight:700;min-width:18px;line-height:16px;text-align:center}
+@media (prefers-color-scheme:dark){.badge{color:#1b0f1a}}
+.body{flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border2) transparent}
+.pane{display:none;flex-direction:column;gap:6px}
+.pane.active{display:flex}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);box-shadow:var(--sh);flex-shrink:0}
+.ch{padding:10px 13px 0;display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.ct{font-size:12px;font-weight:700}
+.cm{font-size:11px;color:var(--muted)}
+.cb{padding:10px 13px 12px;display:flex;flex-direction:column;gap:8px}
+.field-label{font-size:11px;font-weight:600;color:var(--muted)}
+input[type=text],input[type=search],select,textarea{width:100%;padding:7px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);font-size:12.5px;appearance:none}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-bg)}
+input::placeholder,textarea::placeholder{color:var(--muted2)}
+select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='%23809498' d='M4 6l4 4 4-4'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center;background-size:14px;padding-right:28px}
+textarea{min-height:54px;resize:vertical}
+.r2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.chips{display:flex;flex-wrap:wrap;gap:4px}
+.chip{font-size:11px;padding:4px 10px;border-radius:999px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-weight:600;cursor:pointer}
+.chip:hover{color:var(--text);border-color:var(--border2)}
+.chip.on{background:var(--accent-bg);border-color:var(--accent-bdr);color:var(--accent)}
+.chip:disabled{opacity:.45;cursor:default}
+
+/* Region card – the signature element */
+.region{border-color:var(--accent-bdr)}
+.region-line{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.region-big{font-size:22px;font-weight:600;letter-spacing:-.02em;line-height:1.1}
+.region-km{font-size:22px;font-weight:400;color:var(--accent);letter-spacing:-.02em;line-height:1.1}
+.region-none{font-size:15px;font-weight:600;color:var(--muted)}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.range-row{display:flex;align-items:center;gap:10px}
+.range-row output{font-size:12px;font-weight:600;min-width:52px;text-align:right}
+.pick-btn{font-size:11.5px;padding:6px 10px;border-radius:8px;border:1px dashed var(--accent-bdr);background:transparent;color:var(--accent);font-weight:600;cursor:pointer}
+.pick-btn.on{background:var(--accent);color:var(--surface);border-style:solid}
+
+/* Items */
+.list{display:flex;flex-direction:column;gap:5px}
+.item{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:9px 11px}
+.item.in-sel{border-color:var(--sel-bdr);background:var(--sel-bg)}
+.item.focused{border-color:var(--accent)}
+.irow{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.iname{font-size:12.5px;font-weight:700;line-height:1.3}
+.idist{font-size:11px;color:var(--muted);white-space:nowrap}
+.imeta{font-size:11.5px;color:var(--muted);line-height:1.5;margin-top:2px;overflow-wrap:anywhere}
+.tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
+.tag{font-size:10.5px;padding:1px 7px;border-radius:999px;border:1px solid var(--border2);color:var(--muted);background:var(--surface)}
+.st{font-size:10.5px;font-weight:700;padding:1px 8px;border-radius:999px;border:1px solid currentColor;white-space:nowrap}
+.st-new{color:var(--st-new)}.st-contacted{color:var(--st-contacted)}.st-replied{color:var(--st-replied)}.st-meeting{color:var(--st-meeting)}.st-no{color:var(--st-no)}
+.iactions{display:flex;gap:4px;flex-wrap:wrap;margin-top:7px}
+.mb{font-size:11px;font-weight:600;padding:4px 9px;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--muted);cursor:pointer}
+.mb:hover{color:var(--text);border-color:var(--border2)}
+.mb.p{background:var(--accent);border-color:var(--accent);color:var(--surface)}
+.mb.p:hover{background:var(--accent-h)}
+.mb.sel{background:var(--sel-bg);border-color:var(--sel-bdr);color:var(--sel)}
+.btn{width:100%;padding:8px 12px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface2);font-size:12.5px;font-weight:600;cursor:pointer;text-align:center}
+.btn:hover{border-color:var(--border2)}
+.btn.p{background:var(--accent);border-color:var(--accent);color:var(--surface)}
+.btn.p:hover{background:var(--accent-h)}
+.btn.s{background:var(--sel-bg);border-color:var(--sel-bdr);color:var(--sel)}
+label.btn{display:block}
+label.btn input{display:none}
+.empty{border:1px dashed var(--border2);border-radius:var(--r);padding:16px;text-align:center;color:var(--muted);font-size:12px;line-height:1.6}
+.note{font-size:11.5px;color:var(--muted);line-height:1.55}
+.msg{font-size:11.5px;padding:7px 10px;border-radius:8px;background:var(--accent-bg);color:var(--accent);display:none}
+.msg.show{display:block}
+.msg.err{background:rgba(178,59,59,.08);color:var(--red)}
+.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
+.stat{border:1px solid var(--border);border-radius:8px;padding:6px 7px;background:var(--surface2)}
+.stat b{display:block;font-size:17px;font-weight:600;line-height:1.1}
+.stat span{font-size:10px;font-weight:600}
+.editor{display:grid;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
+.saved{font-size:11px;color:var(--ok);opacity:0;transition:opacity .2s}
+.saved.show{opacity:1}
+dl.kv{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:11.5px;margin-top:6px}
+dl.kv dt{color:var(--muted)}
+dl.kv dd{overflow-wrap:anywhere}
+
+/* Map overlays */
+#legend{position:fixed;right:14px;bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:900;background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:10px 13px;box-shadow:var(--sh);font-size:11.5px;display:grid;gap:5px}
+.lr{display:flex;align-items:center;gap:7px;color:var(--muted)}
+.ld{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.lring{width:10px;height:10px;border-radius:50%;border:2.5px solid var(--sel);flex-shrink:0}
+.ldash{width:14px;height:0;border-top:2px dashed var(--accent);flex-shrink:0}
+.center-label{background:none;border:0}
+.center-label div{transform:translate(-50%,-140%);white-space:nowrap;background:var(--accent);color:var(--surface);padding:3px 9px;border-radius:999px;font:600 12px/1.4 var(--sans);box-shadow:var(--sh);display:inline-flex;gap:6px}
+.center-label div span{font-weight:400;opacity:.85}
+#mapError{position:fixed;right:64px;top:14px;z-index:900;max-width:320px;background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:12px 14px;box-shadow:var(--sh);font-size:12px;color:var(--muted)}
+#mapError[hidden]{display:none}
+#pickHint{position:fixed;left:50%;top:calc(16px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:1100;background:var(--accent);color:var(--surface);padding:7px 14px;border-radius:999px;font-weight:600;font-size:12px;box-shadow:var(--sh)}
+#pickHint[hidden]{display:none}
+
+@media (max-width:860px){
+  .panel{right:14px;width:auto;bottom:44vh}
+  #legend{display:none}
+  .leaflet-top.leaflet-right{top:auto;bottom:calc(20px + env(safe-area-inset-bottom,0px))}
+  #mapError{right:14px;top:auto;bottom:calc(14px + env(safe-area-inset-bottom,0px))}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div id="map" role="region" aria-label="Karte"></div>
+<div id="mapError" hidden>Die Kartenbibliothek konnte nicht geladen werden. Suche, Liste und Export funktionieren weiter.</div>
+<div id="pickHint" hidden>Klicke auf die Karte, um den Mittelpunkt zu setzen · Esc bricht ab</div>
+
+<div class="panel" id="panel">
+  <header class="hdr">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">Ψ</div>
+      <div>
+        <div class="title">Psych Outreach</div>
+        <div class="sub">Resilience · 116117 Arztsuche</div>
+      </div>
+    </div>
+    <div class="hdr-actions">
+      <button class="icon-btn" id="fitBtn" title="Alle Treffer zeigen" aria-label="Alle Treffer zeigen">⤢</button>
+      <button class="icon-btn" id="resetBtn" title="Filter zurücksetzen" aria-label="Filter zurücksetzen">↺</button>
+      <button class="icon-btn" id="collapseBtn" title="Panel einklappen" aria-label="Panel einklappen" aria-expanded="true">−</button>
+    </div>
+  </header>
+  <div class="status-bar" role="status"><span class="dot load" id="statusDot"></span><span id="statusText">Daten werden geladen…</span></div>
+  <nav class="tabs" role="tablist">
+    <button class="tab active" data-tab="explore" role="tab">Suchen</button>
+    <button class="tab" data-tab="focus" role="tab">Standort</button>
+    <button class="tab" data-tab="outreach" role="tab">Outreach <span class="badge" id="selBadge">0</span></button>
+    <button class="tab" data-tab="sync" role="tab">Daten</button>
+  </nav>
+
+  <div class="body" id="panelBody">
+    <!-- SUCHEN -->
+    <section class="pane active" id="pane-explore">
+      <div class="card region">
+        <div class="ch"><span class="ct">Region</span><button class="pick-btn" id="pickBtn" type="button">Punkt auf Karte wählen</button></div>
+        <div class="cb">
+          <div class="region-line" id="regionLine"></div>
+          <select id="centerSel" aria-label="Mittelpunkt"></select>
+          <div class="chips" id="radiusChips"></div>
+          <div class="range-row">
+            <input type="range" id="radiusRange" min="5" max="500" step="5" value="200" aria-label="Radius in Kilometern">
+            <output id="radiusOut" for="radiusRange">200 km</output>
+          </div>
+          <select id="plzSel" aria-label="PLZ-Bereich"><option value="">Alle PLZ-Bereiche</option></select>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="ch"><span class="ct">Filter</span></div>
+        <div class="cb">
+          <input type="search" id="search" placeholder="Name, Straße, Ort oder PLZ" aria-label="Suche">
+          <select id="fgSel" aria-label="Fachgebiet"><option value="">Alle Fachgebiete</option></select>
+          <select id="pvSel" aria-label="Therapieverfahren"><option value="">Alle Therapieverfahren</option></select>
+          <div class="r2">
+            <select id="statusSel" aria-label="Outreach-Status"></select>
+            <select id="contactSel" aria-label="Kontaktdaten">
+              <option value="">Alle Kontaktdaten</option>
+              <option value="email">Mit E-Mail</option>
+              <option value="tel">Mit Telefon</option>
+              <option value="web">Mit Website</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="ch"><span class="ct">Treffer</span><span class="cm" id="resultCount"></span></div>
+        <div class="cb">
+          <button class="btn s" id="addAllBtn" type="button">Alle Treffer zur Outreach hinzufügen</button>
+          <div class="list" id="resultList"></div>
+          <button class="btn" id="moreBtn" type="button" hidden>Weitere anzeigen</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- STANDORT -->
+    <section class="pane" id="pane-focus">
+      <div class="card"><div class="cb" id="focusBody"></div></div>
+    </section>
+
+    <!-- OUTREACH -->
+    <section class="pane" id="pane-outreach">
+      <div class="card">
+        <div class="ch"><span class="ct">Auswahl nach Status</span><span class="cm" id="selCount"></span></div>
+        <div class="cb"><div class="stats" id="selStats"></div></div>
+      </div>
+      <div class="card">
+        <div class="ch"><span class="ct">Auswahl bearbeiten</span></div>
+        <div class="cb">
+          <div class="r2">
+            <select id="bulkStatus" aria-label="Status für Auswahl"></select>
+            <input type="text" id="bulkOwner" placeholder="Owner (leer = unverändert)" aria-label="Owner für Auswahl">
+          </div>
+          <button class="btn" id="bulkApply" type="button">Auf Auswahl anwenden</button>
+          <button class="btn p" id="csvBtn" type="button">Recherche-CSV exportieren</button>
+          <button class="btn" id="clearSelBtn" type="button">Auswahl leeren</button>
+          <div class="msg" id="outreachMsg"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="ch"><span class="ct">Ausgewählte Einträge</span></div>
+        <div class="cb"><div class="list" id="selList"></div></div>
+      </div>
+    </section>
+
+    <!-- DATEN & SYNC -->
+    <section class="pane" id="pane-sync">
+      <div class="card">
+        <div class="ch"><span class="ct">Team-Stand</span></div>
+        <div class="cb">
+          <p class="note">Status, Owner, Notizen und Auswahl werden in diesem Browser gespeichert. Zum Teilen als <code>state.json</code> exportieren und im Repo unter <code>data/state.json</code> ablegen.</p>
+          <button class="btn p" id="loadRepoState" type="button">Team-Stand aus dem Repo laden</button>
+          <div class="r2">
+            <button class="btn" id="exportState" type="button">state.json exportieren</button>
+            <label class="btn">state.json importieren<input type="file" id="importState" accept=".json,application/json"></label>
+          </div>
+          <div class="msg" id="stateMsg"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="ch"><span class="ct">Daten</span><span class="cm" id="dataMeta"></span></div>
+        <div class="cb">
+          <p class="note">Neue Suchergebnisse aus <a href="https://arztsuche.116117.de/" target="_blank" rel="noopener">arztsuche.116117.de</a> als JSON importieren (Antwort von <code>api/data</code>). Mehrere Dateien gleichzeitig sind möglich, doppelte Einträge werden zusammengeführt.</p>
+          <label class="btn p">116117-Export importieren<input type="file" id="importData" accept=".json,.js,application/json" multiple></label>
+          <button class="btn" id="exportData" type="button">practices.json exportieren</button>
+          <div class="msg" id="dataMsg"></div>
+          <p class="note">Importierte Daten gelten nur bis zum Neuladen der Seite. Dauerhaft: Exportdateien im Repo unter <code>data/raw/</code> ablegen – die GitHub Action baut daraus <code>data/practices.json</code>.</p>
+          <p class="note">Kein vollständiges Versorgungsverzeichnis und keine Aussage über freie Therapieplätze.</p>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div id="legend" aria-label="Legende">
+  <div class="lr"><span class="ld" style="background:var(--st-new)"></span>Neu</div>
+  <div class="lr"><span class="ld" style="background:var(--st-contacted)"></span>Kontaktiert</div>
+  <div class="lr"><span class="ld" style="background:var(--st-replied)"></span>Antwort</div>
+  <div class="lr"><span class="ld" style="background:var(--st-meeting)"></span>Termin</div>
+  <div class="lr"><span class="ld" style="background:var(--st-no)"></span>Kein Interesse</div>
+  <div class="lr"><span class="lring"></span>In der Outreach-Auswahl</div>
+  <div class="lr"><span class="ldash"></span>Suchradius</div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+'use strict';
+/* ---------- Konstanten ---------- */
+const DATA_URL='data/practices.json', STATE_URL='data/state.json';
+const LS_STATE='psychOutreach.state.v2', LS_UI='psychOutreach.ui.v2';
+const PAGE=200;
+const STATUSES=[{k:'Neu',c:'new'},{k:'Kontaktiert',c:'contacted'},{k:'Antwort',c:'replied'},{k:'Termin',c:'meeting'},{k:'Kein Interesse',c:'no'}];
+const RANK={'Neu':0,'Kein Interesse':1,'Kontaktiert':2,'Antwort':3,'Termin':4};
+const RADII=[25,50,100,200,300];
+const CITIES=[
+ ['Berlin',52.5200,13.4050],['Hamburg',53.5511,9.9937],['München',48.1372,11.5756],['Köln',50.9375,6.9603],
+ ['Frankfurt am Main',50.1109,8.6821],['Stuttgart',48.7758,9.1829],['Düsseldorf',51.2277,6.7735],['Leipzig',51.3397,12.3731],
+ ['Dortmund',51.5136,7.4653],['Essen',51.4556,7.0116],['Bremen',53.0793,8.8017],['Dresden',51.0504,13.7373],
+ ['Hannover',52.3759,9.7320],['Nürnberg',49.4521,11.0767],['Augsburg',48.3705,10.8978],['Bonn',50.7374,7.0982],
+ ['Münster',51.9607,7.6261],['Mannheim',49.4875,8.4660],['Karlsruhe',49.0069,8.4037],['Freiburg im Breisgau',47.9990,7.8421],
+ ['Heidelberg',49.3988,8.6724],['Aachen',50.7753,6.0839],['Bielefeld',52.0302,8.5325],['Kassel',51.3127,9.4797],
+ ['Göttingen',51.5413,9.9158],['Würzburg',49.7913,9.9534],['Regensburg',49.0134,12.1016],['Kiel',54.3233,10.1228],
+ ['Rostock',54.0924,12.0991],['Schwerin',53.6355,11.4012],['Magdeburg',52.1205,11.6276],['Halle (Saale)',51.4969,11.9688],
+ ['Erfurt',50.9848,11.0299],['Potsdam',52.3906,13.0645],['Mainz',49.9929,8.2473],['Wiesbaden',50.0782,8.2398],
+ ['Saarbrücken',49.2402,6.9969]
+].sort((a,b)=>a[0].localeCompare(b[0],'de'));
+
+/* ---------- Zustand ---------- */
+const S={
+  records:[],byId:new Map(),groupsAll:new Map(),meta:{generated:null,source:''},
+  track:{},sel:new Set(),
+  center:null,radiusKm:200,picked:null,picking:false,
+  focusKey:null,filtered:[],limit:PAGE,dist:new Map()
+};
+let map=null,markerLayer=null,radiusLayer=null,COL={};
+
+/* ---------- Helfer ---------- */
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const str=v=>v==null?'':String(v).trim();
+const arr=v=>Array.isArray(v)?v:(v==null||v===''?[]:[v]);
+function num(v){if(v==null||typeof v==='boolean'||(typeof v==='string'&&!v.trim()))return null;const n=typeof v==='string'?Number(v.replace(',','.')):Number(v);return Number.isFinite(n)?n:null}
+function textList(v){return arr(v).map(x=>typeof x==='string'?x:(x&&typeof x==='object'?(x.value||x.heading||x.name||x.text||''):'')).map(str).filter(Boolean)}
+function hashId(s){let h=2166136261;for(const ch of s){h^=ch.codePointAt(0);h=Math.imul(h,16777619)}return 'h'+(h>>>0).toString(36)}
+function distKm(a,b,c,d){const R=6371,dLa=(c-a)*Math.PI/180,dLo=(d-b)*Math.PI/180;const x=Math.sin(dLa/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dLo/2)**2;return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x))}
+const fullName=r=>[r.titel,r.vorname,r.name].filter(Boolean).join(' ');
+const street=r=>[r.strasse,r.hausnummer].filter(Boolean).join(' ');
+const town=r=>[r.plz,r.ort].filter(Boolean).join(' ');
+const addr=r=>[street(r),town(r)].filter(Boolean).join(', ');
+const gkey=r=>r.lat==null?null:JSON.stringify([r.lat.toFixed(5),r.lon.toFixed(5),r.strasse.toLowerCase(),r.hausnummer.toLowerCase(),r.plz,r.ort.toLowerCase()]);
+const stOf=id=>S.track[id]?.status||'Neu';
+const stCls=s=>(STATUSES.find(x=>x.k===s)||STATUSES[0]).c;
+const fmtKm=d=>d==null?'':(d<10?d.toFixed(1):Math.round(d))+' km';
+function safeUrl(u){u=str(u);if(!u)return '';if(!/^https?:\/\//i.test(u))u='https://'+u;try{const x=new URL(u);return /^https?:$/.test(x.protocol)?x.href:''}catch{return ''}}
+function debounce(fn,ms){let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),ms)}}
+function readColors(){const cs=getComputedStyle(document.documentElement);const g=n=>cs.getPropertyValue(n).trim();COL={new:g('--st-new'),contacted:g('--st-contacted'),replied:g('--st-replied'),meeting:g('--st-meeting'),no:g('--st-no'),sel:g('--sel'),accent:g('--accent'),text:g('--text'),surface:g('--surface')}}
+function flash(id,text,isErr){const el=$(id);el.textContent=text;el.classList.toggle('err',!!isErr);el.classList.add('show');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('show'),6000)}
+function download(name,text,type){const b=new Blob([text],{type});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1000)}
+function setStatus(kind,text){$('statusDot').className='dot '+kind;$('statusText').textContent=text}
+
+/* ---------- Normalisierung (identisch zu tools/build_data.py) ---------- */
+const uniq=xs=>[...new Set(xs)];
+function first(d,...keys){for(const key of keys){let v=d;for(const part of key.split('.'))v=v&&typeof v==='object'?v[part]:null;if(v!=null&&v!=='')return v}return null}
+function fgLists(v){const grp=[],fach=[];for(const x of arr(v)){if(typeof x==='string'){const t=str(x);if(t){grp.push(t);fach.push(t)}}else if(x&&typeof x==='object'){const g=str(x.value||x.name),kids=textList(x.children);if(g)grp.push(g);if(kids.length)fach.push(...kids);else if(g)fach.push(g)}}return {grp:uniq(grp),fach:uniq(fach)}}
+function psyLists(v){const detail=[];for(const p of arr(v)){if(typeof p==='string'){const t=str(p);if(t)detail.push(t)}else if(p&&typeof p==='object'){const h=str(p.heading),vals=textList(p.values);if(vals.length)detail.push(...vals.map(x=>(h+' '+x).replace(/\s+/g,' ').trim()));else if(h)detail.push(h)}}const d=uniq(detail);const methods=[['Verhaltenstherapie',/verhaltenstherapie/i],['Tiefenpsychologisch fundierte Psychotherapie',/tiefenpsycholog/i],['Analytische Psychotherapie',/analytisch/i],['Systemische Therapie',/systemisch/i]];return {detail:d,methods:methods.filter(([n,rx])=>d.some(x=>rx.test(x))).map(([n])=>n)}}
+function normDoc(d,src){
+ if(!d||typeof d!=='object'||Array.isArray(d))return null;
+ const r={titel:str(d.titel),vorname:str(d.vorname),name:str(d.name||d.nachname),anrede:str(d.anrede),geschlecht:str(d.geschlecht),tel:str(d.tel||d.telefon),handy:str(d.handy),fax:str(d.fax),email:str(d.email),web:str(d.web||d.homepage||d.url||d.www).replace(/^https?:\/\/(?=https?:\/\/)/i,''),strasse:str(d.strasse),hausnummer:str(d.hausnummer),plz:str(d.plz),ort:str(d.ort),lat:num(first(d,'lat','latitude','geo.lat','koordinaten.lat')),lon:num(first(d,'lon','lng','longitude','geo.lon','geo.lng','koordinaten.lon')),fs:textList(d.fs),bf:textList(d.bf),zb:textList(d.zb),src:str(d.src)||src};
+ if(!r.name&&!r.vorname)return null;
+ const fg=fgLists(d.fg||d.fachgebiete||d.fachrichtungen);r.fg=fg.fach;r.fgg=Array.isArray(d.fgg)?textList(d.fgg):fg.grp;
+ const psy=psyLists(d.psy);r.psy=psy.detail;r.pv=psy.methods;
+ const alt=[...r.psy,...r.fg].join(' ');r.pa=[['Erwachsene',/erwachsene/i],['Kinder und Jugendliche',/kinder|jugendl/i]].filter(([n,rx])=>rx.test(alt)).map(([n])=>n);
+ r.psych=r.fgg.some(g=>['Psychotherapie','Kinder- und Jugendpsychiatrie'].includes(g))||r.fg.some(f=>['Psychiatrie und Psychotherapie','Nervenheilkunde','Psychosomatische Medizin und Psychotherapie'].includes(f));
+ if(r.lat!=null&&Math.abs(r.lat)>90)r.lat=null;if(r.lon!=null&&Math.abs(r.lon)>180)r.lon=null;
+ if(r.lat==null||r.lon==null){r.lat=null;r.lon=null}else{r.lat=Math.round(r.lat*1e6)/1e6;r.lon=Math.round(r.lon*1e6)/1e6}
+ // Search-local id is intentionally excluded. Title/name/address changes still need review.
+ r.uid=str(d.uid)||hashId([r.titel,r.vorname,r.name,r.strasse,r.hausnummer,r.plz].join('|').toLowerCase());
+ r.sources=uniq([...textList(d.sources),r.src]);return r;
+}
+function mergeRecord(old,r){if(!old)return r;const out={...old};for(const[k,v]of Object.entries(r)){if(Array.isArray(v))out[k]=uniq([...(Array.isArray(old[k])?old[k]:[]),...v]);else if(v!=null&&v!=='')out[k]=v}return out}
+function docsFrom(j){
+  if(Array.isArray(j))return j.flatMap(x=>x&&Array.isArray(x.arztPraxisDatas)?x.arztPraxisDatas:[x]);
+  if(j&&typeof j==='object'){
+    if(Array.isArray(j.records))return j.records;
+    if(Array.isArray(j.arztPraxisDatas))return j.arztPraxisDatas;
+    if(j.type==='FeatureCollection')return(j.features||[]).map(f=>{const c=f?.geometry?.coordinates||[];return{...(f?.properties||{}),lon:c[0],lat:c[1]}});
+  }
+  return[];
+}
+function parseText(t){t=t.trim().replace(/^\uFEFF/,'');if(t&&!'[{'.includes(t[0]))t=t.replace(/^\s*(?:(?:var|let|const)\s+)?(?:window\.)?[\w$.]+\s*=\s*/,'').replace(/;\s*$/,'');return JSON.parse(t)}
+function parseAny(j,src){return docsFrom(j).map(d=>normDoc(d,src)).filter(Boolean)}
+
+/* ---------- Daten ---------- */
+function indexRecords(){
+  S.byId=new Map(S.records.map(r=>[r.uid,r]));
+  S.groupsAll=new Map();
+  for(const r of S.records){const k=gkey(r);if(!k)continue;let g=S.groupsAll.get(k);if(!g){g={key:k,lat:r.lat,lon:r.lon,recs:[]};S.groupsAll.set(k,g)}g.recs.push(r)}
+}
+function mergeRecords(list){let added=0;for(const r of list){if(!S.byId.has(r.uid))added++;S.byId.set(r.uid,mergeRecord(S.byId.get(r.uid),r))}S.records=[...S.byId.values()];indexRecords();return added}
+function fillFilters(){
+  const count=(fn)=>{const m=new Map();for(const r of S.records)for(const v of fn(r))m.set(v,(m.get(v)||0)+1);return[...m.entries()].sort((a,b)=>a[0].localeCompare(b[0],'de'))};
+  const fill=(id,first,entries)=>{const el=$(id),cur=el.value;el.innerHTML=`<option value="">${first}</option>`+entries.map(([v,n])=>`<option value="${esc(v)}">${esc(v)} (${n})</option>`).join('');if([...el.options].some(o=>o.value===cur))el.value=cur};
+  fill('fgSel','Alle Fachgebiete',count(r=>r.fg));
+  fill('pvSel','Alle Therapieverfahren',count(r=>r.pv));
+  fill('plzSel','Alle PLZ-Bereiche',count(r=>r.plz?[r.plz.slice(0,2)]:[]));
+  [...$('plzSel').options].forEach(o=>{if(o.value)o.textContent='PLZ '+o.textContent.replace(' (','… (')});
+}
+function updateMeta(){
+  const n=S.records.length,noGeo=S.records.filter(r=>r.lat==null).length;
+  const when=S.meta.generated?new Date(S.meta.generated).toLocaleDateString('de-DE'):null;
+  $('dataMeta').textContent=n?`${n.toLocaleString('de-DE')} Einträge${when?`, Stand ${when}`:''}`:'';
+  if(!n)setStatus('err','Noch keine Daten. Unter „Daten“ einen 116117-Export importieren.');
+  else setStatus('live',`${n.toLocaleString('de-DE')} Einträge · Teilauszüge, nicht vollständig${when?` · Stand ${when}`:''}${noGeo?` · ${noGeo} ohne Koordinaten`:''}`);
+}
+async function loadData(){
+  setStatus('load','Daten werden geladen…');
+  try{
+    const res=await fetch(DATA_URL,{cache:'no-cache'});
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const j=parseText(await res.text());
+    S.meta.generated=j.generated||null;S.meta.source=j.source||'';
+    S.records=[];indexRecords();mergeRecords(parseAny(j,'practices.json'));
+    fillFilters();updateMeta();renderAll();fitView();
+  }catch(e){
+    setStatus('err',location.protocol==='file:'?'Lokal geöffnet: Daten unter „Daten“ importieren.':'data/practices.json nicht gefunden. Daten unter „Daten“ importieren.');
+    renderAll();
+  }
+}
+
+/* ---------- Tracking / Persistenz ---------- */
+function saveState(){try{localStorage.setItem(LS_STATE,JSON.stringify({records:S.track,selection:[...S.sel]}))}catch{}}
+function loadState(){try{const j=JSON.parse(localStorage.getItem(LS_STATE)||'null');if(j){S.track=j.records||{};S.sel=new Set(j.selection||[])}}catch{}}
+function saveUi(){try{localStorage.setItem(LS_UI,JSON.stringify({center:S.center,picked:S.picked,radiusKm:S.radiusKm}))}catch{}}
+function loadUi(){try{const j=JSON.parse(localStorage.getItem(LS_UI)||'null');if(j){S.radiusKm=j.radiusKm||200;S.picked=j.picked||null;S.center=j.center||null}}catch{}}
+function setTrack(id,patch){const t={status:'Neu',owner:'',note:'',...(S.track[id]||{}),...patch,updatedAt:new Date().toISOString()};S.track[id]=t;saveState()}
+function mergeState(j){
+  let changed=0;
+  for(const[id,t]of Object.entries(j?.records||{})){const cur=S.track[id];if(!cur||(t.updatedAt||'')>(cur.updatedAt||'')){S.track[id]=t;changed++}}
+  let added=0;for(const id of j?.selection||[]){if(!S.sel.has(id)){S.sel.add(id);added++}}
+  saveState();return{changed,added};
+}
+
+/* ---------- Filter ---------- */
+function applyFilters(){
+  const q=$('search').value.trim().toLocaleLowerCase('de'),fg=$('fgSel').value,pv=$('pvSel').value,plz=$('plzSel').value,st=$('statusSel').value,ct=$('contactSel').value;
+  const c=S.center,rk=S.radiusKm,out=[];S.dist=new Map();
+  for(const r of S.records){
+    if(c){if(r.lat==null)continue;const d=distKm(c.lat,c.lon,r.lat,r.lon);if(d>rk)continue;S.dist.set(r.uid,d)}
+    if(plz&&!r.plz.startsWith(plz))continue;
+    if(fg&&!r.fg.includes(fg))continue;
+    if(pv&&!r.pv.includes(pv))continue;
+    if(st==='__sel'){if(!S.sel.has(r.uid))continue}else if(st==='__open'){if(stOf(r.uid)!=='Neu')continue}else if(st&&stOf(r.uid)!==st)continue;
+    if(ct&&!r[ct])continue;
+    if(q){const h=`${fullName(r)} ${addr(r)} ${r.fg.join(' ')}`.toLocaleLowerCase('de');if(!h.includes(q))continue}
+    out.push(r);
+  }
+  if(c)out.sort((a,b)=>S.dist.get(a.uid)-S.dist.get(b.uid));
+  else out.sort((a,b)=>(a.plz||'~').localeCompare(b.plz||'~')||a.name.localeCompare(b.name,'de'));
+  S.filtered=out;
+}
+
+/* ---------- Rendering ---------- */
+function renderRegion(){
+  const c=S.center;
+  $('regionLine').innerHTML=c?`<span class="region-big">${esc(c.name)}</span><span class="region-km">${S.radiusKm} km</span>`:'<span class="region-none">Ganz Deutschland</span>';
+  const sel=$('centerSel');
+  sel.innerHTML='<option value="">Ganz Deutschland</option>'+(S.picked?`<option value="__pick">Gewählter Punkt (${S.picked.lat.toFixed(3)}, ${S.picked.lon.toFixed(3)})</option>`:'')+CITIES.map(([n])=>`<option value="${esc(n)}">${esc(n)}</option>`).join('');
+  sel.value=!c?'':(c.picked?'__pick':c.name);
+  $('radiusChips').innerHTML=RADII.map(r=>`<button type="button" class="chip${c&&S.radiusKm===r?' on':''}" data-r="${r}"${c?'':' disabled'}>${r} km</button>`).join('');
+  $('radiusRange').value=S.radiusKm;$('radiusRange').disabled=!c;$('radiusOut').textContent=S.radiusKm+' km';
+}
+function itemHTML(r){
+  const s=stOf(r.uid),inSel=S.sel.has(r.uid),d=S.dist.get(r.uid)??(S.center&&r.lat!=null?distKm(S.center.lat,S.center.lon,r.lat,r.lon):null);
+  const focused=S.focusKey&&gkey(r)===S.focusKey;
+  return `<article class="item${inSel?' in-sel':''}${focused?' focused':''}">
+    <div class="irow"><div class="iname">${esc(fullName(r))}</div><span class="st st-${stCls(s)}">${esc(s)}</span></div>
+    <div class="imeta">${esc(addr(r))||'Adresse fehlt'}${d!=null?` <span class="idist">· ${fmtKm(d)}</span>`:''}${r.lat==null?' <span class="idist">· ohne Koordinaten</span>':''}</div>
+    ${r.fg.length?`<div class="tags">${r.fg.slice(0,3).map(f=>`<span class="tag">${esc(f)}</span>`).join('')}${r.fg.length>3?`<span class="tag">+${r.fg.length-3}</span>`:''}</div>`:''}
+    <div class="iactions">${r.lat!=null?`<button class="mb" data-act="focus" data-id="${esc(r.uid)}">Standort ansehen</button>`:''}<button class="mb${inSel?' sel':''}" data-act="toggle" data-id="${esc(r.uid)}">${inSel?'✓ In Outreach':'+ Outreach'}</button></div>
+  </article>`;
+}
+function renderList(){
+  const n=S.filtered.length,shown=S.filtered.slice(0,S.limit);
+  const people=n.toLocaleString('de-DE'),locs=new Set(S.filtered.map(gkey).filter(Boolean)).size;
+  $('resultCount').textContent=`${people} ${n===1?'Eintrag':'Einträge'} an ${locs.toLocaleString('de-DE')} Standorten`;
+  $('resultList').innerHTML=n?shown.map(r=>itemHTML(r)).join(''):(S.records.length?'<div class="empty">Keine Treffer. Radius vergrößern oder Filter lockern.</div>':'<div class="empty">Noch keine Daten geladen.<br>Unter „Daten“ einen 116117-Export importieren.</div>');
+  $('moreBtn').hidden=n<=S.limit;$('moreBtn').textContent=`Weitere ${Math.min(PAGE,n-S.limit)} anzeigen`;
+  $('addAllBtn').disabled=!n;$('addAllBtn').textContent=`Alle ${people} Treffer zur Outreach hinzufügen`;
+}
+function renderFocus(){
+  const box=$('focusBody'),g=S.focusKey&&S.groupsAll.get(S.focusKey);
+  if(!g){box.innerHTML='<div class="empty">Wähle einen Standort auf der Karte oder über „Standort ansehen“ in der Trefferliste.</div>';return}
+  const r0=g.recs[0],d=S.center?distKm(S.center.lat,S.center.lon,g.lat,g.lon):null,allSel=g.recs.every(r=>S.sel.has(r.uid));
+  const osm=`https://www.openstreetmap.org/?mlat=${g.lat}&mlon=${g.lon}#map=18/${g.lat}/${g.lon}`;
+  box.innerHTML=`<div class="irow"><div><div class="iname" style="font-size:15px">${esc(street(r0))||'Standort'}</div><div class="imeta">${esc(town(r0))}${d!=null?` · ${fmtKm(d)} von ${esc(S.center.name)}`:''}</div></div><button class="mb" data-act="unfocus">Schließen</button></div>
+    <div class="iactions">${g.recs.length>1?`<button class="mb${allSel?' sel':''}" data-act="selgroup">${allSel?'✓ Alle in Outreach':`Alle ${g.recs.length} zur Outreach`}</button>`:''}<button class="mb" data-act="zoom">Auf Karte zentrieren</button><a class="mb" href="${osm}" target="_blank" rel="noopener" style="text-decoration:none">In OpenStreetMap öffnen</a></div>
+    <div class="list" style="margin-top:6px">${g.recs.map(personHTML).join('')}</div>`;
+}
+function personHTML(r){
+  const t=S.track[r.uid]||{},inSel=S.sel.has(r.uid),web=safeUrl(r.web);
+  const kv=[['Telefon',r.tel?`<a href="tel:${esc(r.tel.replace(/[^\d+]/g,''))}">${esc(r.tel)}</a>`:''],['Mobil',r.handy?esc(r.handy):''],['E-Mail',r.email?`<a href="mailto:${esc(r.email)}">${esc(r.email)}</a>`:''],['Website',web?`<a href="${esc(web)}" target="_blank" rel="noopener">${esc(r.web)}</a>`:''],['Fachgebiet',esc(r.fg.join(', '))],['Verfahren',esc(r.psy.join('; '))],['Sprachen',esc(r.fs.join(', '))],['Barrierefrei',esc(r.bf.join(', '))]].filter(x=>x[1]);
+  return `<article class="item${inSel?' in-sel':''}">
+    <div class="irow"><div class="iname">${esc(fullName(r))}</div><span class="st st-${stCls(t.status||'Neu')}">${esc(t.status||'Neu')}</span></div>
+    ${kv.length?`<dl class="kv">${kv.map(([k,v])=>`<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`:''}
+    <div class="editor">
+      <div class="r2"><select data-f="status" data-id="${esc(r.uid)}" aria-label="Status">${STATUSES.map(s=>`<option${(t.status||'Neu')===s.k?' selected':''}>${s.k}</option>`).join('')}</select>
+      <input type="text" data-f="owner" data-id="${esc(r.uid)}" placeholder="Owner" value="${esc(t.owner||'')}" aria-label="Owner"></div>
+      <textarea data-f="note" data-id="${esc(r.uid)}" placeholder="Notiz" aria-label="Notiz">${esc(t.note||'')}</textarea>
+      <div class="irow"><button class="mb${inSel?' sel':''}" data-act="toggle" data-id="${esc(r.uid)}">${inSel?'✓ In Outreach':'+ Outreach'}</button><span class="saved" data-saved="${esc(r.uid)}">Gespeichert</span></div>
+    </div>
+  </article>`;
+}
+function renderOutreach(){
+  const list=[...S.sel].map(id=>S.byId.get(id)).filter(Boolean),missing=S.sel.size-list.length;
+  $('selBadge').textContent=S.sel.size;
+  $('selCount').textContent=`${S.sel.size} ausgewählt${missing?`, ${missing} nicht in den aktuellen Daten`:''}`;
+  const cnt=Object.fromEntries(STATUSES.map(s=>[s.k,0]));for(const r of list)cnt[stOf(r.uid)]++;
+  $('selStats').innerHTML=STATUSES.map(s=>`<div class="stat"><b>${cnt[s.k]}</b><span class="st-${s.c}">${s.k}</span></div>`).join('');
+  $('selList').innerHTML=list.length?list.slice(0,300).map(r=>itemHTML(r)).join('')+(list.length>300?`<div class="note">+ ${list.length-300} weitere (im Export enthalten)</div>`:''):'<div class="empty">Noch nichts ausgewählt. In der Trefferliste „+ Outreach“ wählen oder alle Treffer übernehmen.</div>';
+}
+function renderMap(){
+  if(!map)return;
+  markerLayer.clearLayers();radiusLayer.clearLayers();
+  const groups=new Map();
+  for(const r of S.filtered){const k=gkey(r);if(!k)continue;let g=groups.get(k);if(!g){g={key:k,lat:r.lat,lon:r.lon,recs:[]};groups.set(k,g)}g.recs.push(r)}
+  for(const g of groups.values()){
+    let best='Neu',anySel=false;for(const r of g.recs){const s=stOf(r.uid);if(RANK[s]>RANK[best])best=s;if(S.sel.has(r.uid))anySel=true}
+    const f=g.key===S.focusKey,multi=g.recs.length>1;
+    const m=L.circleMarker([g.lat,g.lon],{radius:(multi?7:5)+(f?4:0),color:f?COL.text:(anySel?COL.sel:COL.surface),weight:f?3:(anySel?2.5:1),fillColor:COL[stCls(best)],fillOpacity:.85});
+    m.bindTooltip(`<b>${esc(street(g.recs[0])||'Standort')}</b><br>${esc(town(g.recs[0]))}<br>${g.recs.length} ${g.recs.length===1?'Eintrag':'Einträge'}`,{direction:'top',offset:[0,-4]});
+    m.on('click',e=>{L.DomEvent.stopPropagation(e);if(S.picking)return setCenterFromMap(e.latlng);focusGroup(g.key,false)});
+    markerLayer.addLayer(m);
+  }
+  if(S.center){
+    const c=S.center;
+    L.circle([c.lat,c.lon],{radius:S.radiusKm*1000,color:COL.accent,weight:1.5,dashArray:'6 6',fillColor:COL.accent,fillOpacity:.04,interactive:false}).addTo(radiusLayer);
+    L.circleMarker([c.lat,c.lon],{radius:4,color:COL.accent,weight:2,fillColor:COL.surface,fillOpacity:1,interactive:false}).addTo(radiusLayer);
+    L.marker([c.lat,c.lon],{interactive:false,keyboard:false,icon:L.divIcon({className:'center-label',iconSize:null,html:`<div>${esc(c.name)}<span>${S.radiusKm} km</span></div>`})}).addTo(radiusLayer);
+  }
+}
+function renderAll(){applyFilters();renderRegion();renderList();renderFocus();renderOutreach();renderMap()}
+const renderDebounced=debounce(()=>{S.limit=PAGE;renderAll()},180);
+
+/* ---------- Karte ---------- */
+function setupMap(){
+  if(!window.L){$('mapError').hidden=false;return}
+  map=L.map('map',{zoomControl:false,preferCanvas:true,worldCopyJump:false}).setView([51.16,10.45],6);
+  L.control.zoom({position:'topright'}).addTo(map);
+  // OSM-Kacheln verlangen einen Referer. Per Doppelklick geöffnete Dateien (file://) senden keinen,
+  // dann liefert OSM nur „Access blocked“-Bilder. In dem Fall laden wir keine Kacheln.
+  if(location.protocol==='file:'){
+    $('mapError').textContent='Kartenhintergrund nur über GitHub Pages oder einen lokalen Server (python -m http.server). Punkte, Liste und Export funktionieren auch so.';
+    $('mapError').hidden=false;
+  }else{
+    const tiles=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,referrerPolicy:'strict-origin-when-cross-origin',attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · Daten: 116117 Arztsuche (KBV)'}).addTo(map);
+    let fails=0;tiles.on('tileerror',()=>{if(++fails===5){$('mapError').textContent='Kartenhintergrund nicht geladen. Punkte, Liste und Export funktionieren weiter.';$('mapError').hidden=false}});
+  }
+  radiusLayer=L.layerGroup().addTo(map);markerLayer=L.layerGroup().addTo(map);
+  map.on('click',e=>{if(S.picking)setCenterFromMap(e.latlng)});
+}
+// Polsterung, damit Inhalte nicht unter dem Panel verschwinden
+function pad(){const p=$('panel').getBoundingClientRect(),wide=innerWidth>860;return{paddingTopLeft:wide?[p.right+24,24]:[24,p.bottom+24],paddingBottomRight:[24,24]}}
+function fitView(){
+  if(!map)return;
+  if(S.center){map.fitBounds(L.latLng(S.center.lat,S.center.lon).toBounds(S.radiusKm*2000),pad());return}
+  const pts=S.filtered.filter(r=>r.lat!=null).map(r=>[r.lat,r.lon]);
+  if(pts.length)map.fitBounds(pts,{...pad(),maxZoom:14});else map.setView([51.16,10.45],6);
+}
+function showPoint(lat,lon,zoom){if(map)map.fitBounds(L.latLng(lat,lon).toBounds(zoom>=17?120:400),{...pad(),maxZoom:zoom})}
+function setPicking(on){S.picking=on;$('pickBtn').classList.toggle('on',on);$('pickBtn').textContent=on?'Abbrechen':'Punkt auf Karte wählen';$('pickHint').hidden=!on;$('map').classList.toggle('picking',on)}
+function setCenterFromMap(ll){S.picked={lat:ll.lat,lon:ll.lng};S.center={name:'Gewählter Punkt',lat:ll.lat,lon:ll.lng,picked:true};setPicking(false);saveUi();S.limit=PAGE;renderAll();fitView()}
+function focusGroup(key,zoom=true){S.focusKey=key;switchTab('focus');renderAll();const g=S.groupsAll.get(key);if(g&&zoom)showPoint(g.lat,g.lon,Math.max(map?map.getZoom():15,15))}
+
+/* ---------- Tabs & Panel ---------- */
+function switchTab(t){document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('active',p.id==='pane-'+t));$('panelBody').scrollTop=0}
+
+/* ---------- Export ---------- */
+function csvCell(v){v=String(v??'');if(/^[=+@\t\r\n-]/.test(v))v="'"+v;return /[",\n\r;]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}
+function exportCsv(){
+  const list=[...S.sel].map(id=>S.byId.get(id)).filter(Boolean);
+  if(!list.length){flash('outreachMsg','Keine Einträge in der Auswahl.',true);return}
+  const rows=list.map(r=>{const t=S.track[r.uid]||{},d=S.center&&r.lat!=null?distKm(S.center.lat,S.center.lon,r.lat,r.lon):null;return{
+    firstname:r.vorname,lastname:r.name,salutation:r.anrede,academic_title:r.titel,email:r.email,phone:r.tel,mobilephone:r.handy,website:r.web,
+    company:'',address:street(r),zip:r.plz,city:r.ort,country:'Germany',
+    specialty:r.fg.join('; '),therapy_methods:r.psy.join('; '),languages:r.fs.join('; '),
+    region:S.center?`${S.center.name} ${S.radiusKm} km`:'',distance_km:d==null?'':d.toFixed(1),
+    outreach_status:t.status||'Neu',owner:t.owner||'',note:t.note||'',lead_source:'116117 Arztsuche',source_id:r.uid,source_file:r.sources.join('; '),email_present:!!r.email,email_shared_records:r.email?S.records.filter(x=>x.email.trim().toLowerCase()===r.email.trim().toLowerCase()).length:0,review_status:'Ungeprüft',send_approval:'Nicht freigegeben',do_not_contact:(t.status==='Kein Interesse')}});
+  const hdr=Object.keys(rows[0]);
+  const csv='\uFEFF'+[hdr.join(','),...rows.map(r=>hdr.map(h=>csvCell(r[h])).join(','))].join('\r\n');
+  download(`psych_outreach_${new Date().toISOString().slice(0,10)}.csv`,csv,'text/csv;charset=utf-8');
+  flash('outreachMsg',`${rows.length} Kontakte als Recherche-CSV exportiert – nicht zum Versand freigegeben.`);
+}
+
+/* ---------- Events ---------- */
+function wire(){
+  document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>switchTab(b.dataset.tab)));
+  $('statusSel').innerHTML='<option value="">Alle Status</option><option value="__open">Noch offen (Neu)</option><option value="__sel">Nur Outreach-Auswahl</option>'+STATUSES.map(s=>`<option value="${s.k}">${s.k}</option>`).join('');
+  $('bulkStatus').innerHTML='<option value="">Status unverändert</option>'+STATUSES.map(s=>`<option value="${s.k}">${s.k}</option>`).join('');
+  ['search'].forEach(id=>$(id).addEventListener('input',renderDebounced));
+  ['fgSel','pvSel','plzSel','statusSel','contactSel'].forEach(id=>$(id).addEventListener('change',()=>{S.limit=PAGE;renderAll();if(id==='plzSel')fitView()}));
+  $('centerSel').addEventListener('change',e=>{
+    const v=e.target.value;
+    if(!v)S.center=null;else if(v==='__pick'&&S.picked)S.center={name:'Gewählter Punkt',...S.picked,picked:true};
+    else{const c=CITIES.find(x=>x[0]===v);if(c)S.center={name:c[0],lat:c[1],lon:c[2]}}
+    saveUi();S.limit=PAGE;renderAll();fitView();
+  });
+  $('radiusChips').addEventListener('click',e=>{const b=e.target.closest('[data-r]');if(!b||!S.center)return;S.radiusKm=+b.dataset.r;saveUi();S.limit=PAGE;renderAll();fitView()});
+  $('radiusRange').addEventListener('input',e=>{S.radiusKm=+e.target.value;$('radiusOut').textContent=S.radiusKm+' km';renderDebounced()});
+  $('radiusRange').addEventListener('change',()=>{saveUi();fitView()});
+  $('pickBtn').addEventListener('click',()=>setPicking(!S.picking));
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&S.picking)setPicking(false)});
+  $('moreBtn').addEventListener('click',()=>{S.limit+=PAGE;renderList()});
+  $('addAllBtn').addEventListener('click',()=>{for(const r of S.filtered)S.sel.add(r.uid);saveState();renderAll();flash('outreachMsg',`${S.filtered.length} Einträge zur Auswahl hinzugefügt.`);switchTab('outreach')});
+  $('fitBtn').addEventListener('click',fitView);
+  $('resetBtn').addEventListener('click',()=>{['search','fgSel','pvSel','plzSel','statusSel','contactSel'].forEach(id=>$(id).value='');S.center=null;S.focusKey=null;S.limit=PAGE;setPicking(false);saveUi();switchTab('explore');renderAll();fitView()});
+  $('collapseBtn').addEventListener('click',()=>{const p=$('panel'),c=p.classList.toggle('collapsed');$('collapseBtn').textContent=c?'+':'−';$('collapseBtn').setAttribute('aria-expanded',String(!c))});
+
+  // Delegierte Aktionen in Listen
+  document.querySelector('.panel').addEventListener('click',e=>{
+    const b=e.target.closest('[data-act]');if(!b)return;
+    const id=b.dataset.id,act=b.dataset.act;
+    if(act==='toggle'){S.sel.has(id)?S.sel.delete(id):S.sel.add(id);saveState();renderAll()}
+    else if(act==='focus'){const r=S.byId.get(id);if(r)focusGroup(gkey(r))}
+    else if(act==='unfocus'){S.focusKey=null;renderAll();switchTab('explore')}
+    else if(act==='selgroup'){const g=S.groupsAll.get(S.focusKey);if(!g)return;const all=g.recs.every(r=>S.sel.has(r.uid));g.recs.forEach(r=>all?S.sel.delete(r.uid):S.sel.add(r.uid));saveState();renderAll()}
+    else if(act==='zoom'){const g=S.groupsAll.get(S.focusKey);if(g)showPoint(g.lat,g.lon,17)}
+  });
+  // Editor im Standort-Tab: speichert bei Änderung
+  $('focusBody').addEventListener('change',e=>{
+    const el=e.target.closest('[data-f]');if(!el)return;
+    setTrack(el.dataset.id,{[el.dataset.f]:el.value});
+    const s=$('focusBody').querySelector(`[data-saved="${CSS.escape(el.dataset.id)}"]`);if(s){s.classList.add('show');setTimeout(()=>s.classList.remove('show'),1500)}
+    if(el.dataset.f==='status'){const badge=el.closest('.item').querySelector('.st');badge.className='st st-'+stCls(el.value);badge.textContent=el.value;applyFilters();renderList();renderOutreach();renderMap()}
+  });
+
+  // Outreach
+  $('bulkApply').addEventListener('click',()=>{
+    const st=$('bulkStatus').value,ow=$('bulkOwner').value.trim();
+    if(!st&&!ow){flash('outreachMsg','Status oder Owner angeben.',true);return}
+    const patch={};if(st)patch.status=st;if(ow)patch.owner=ow;
+    let n=0;for(const id of S.sel){if(S.byId.has(id)){setTrack(id,patch);n++}}
+    renderAll();flash('outreachMsg',`${n} Einträge aktualisiert.`);
+  });
+  $('csvBtn').addEventListener('click',exportCsv);
+  $('clearSelBtn').addEventListener('click',()=>{if(!S.sel.size)return;if(!confirm(`Auswahl mit ${S.sel.size} Einträgen leeren? Status und Notizen bleiben erhalten.`))return;S.sel.clear();saveState();renderAll()});
+
+  // Sync
+  $('exportState').addEventListener('click',()=>{download('state.json',JSON.stringify({version:1,exported:new Date().toISOString(),records:S.track,selection:[...S.sel]},null,2),'application/json');flash('stateMsg','state.json exportiert. Im Repo unter data/state.json ersetzen und committen.')});
+  $('importState').addEventListener('change',async e=>{
+    const f=e.target.files[0];if(!f)return;
+    try{const r=mergeState(JSON.parse(await f.text()));renderAll();flash('stateMsg',`${r.changed} Einträge aktualisiert, ${r.added} zur Auswahl hinzugefügt (neuere Änderungen gewinnen).`)}
+    catch(err){flash('stateMsg','Datei ist keine gültige state.json.',true)}
+    e.target.value='';
+  });
+  $('loadRepoState').addEventListener('click',async()=>{
+    try{const res=await fetch(STATE_URL,{cache:'no-cache'});if(!res.ok)throw new Error('HTTP '+res.status);const r=mergeState(await res.json());renderAll();flash('stateMsg',`Team-Stand geladen: ${r.changed} Einträge aktualisiert, ${r.added} zur Auswahl hinzugefügt.`)}
+    catch(err){flash('stateMsg',`data/state.json konnte nicht geladen werden (${err.message}).`,true)}
+  });
+  $('importData').addEventListener('change',async e=>{
+    const files=[...e.target.files];if(!files.length)return;
+    let total=0,added=0,bad=[];
+    for(const f of files){try{const list=parseAny(parseText(await f.text()),f.name);total+=list.length;added+=mergeRecords(list)}catch{bad.push(f.name)}}
+    S.meta.generated=new Date().toISOString();fillFilters();updateMeta();renderAll();fitView();
+    const noGeo=S.records.filter(r=>r.lat==null).length;
+    flash('dataMsg',`${total} Einträge gelesen, ${added} neu.${noGeo?` ${noGeo} ohne Koordinaten (nur in der Liste, nicht auf der Karte).`:''}${bad.length?` Nicht lesbar: ${bad.join(', ')}.`:''}`,!total);
+    e.target.value='';
+  });
+  $('exportData').addEventListener('click',()=>{
+    if(!S.records.length){flash('dataMsg','Keine Daten zum Exportieren.',true);return}
+    const records=[...S.records].sort((a,b)=>(a.plz||'').localeCompare(b.plz||'')||a.name.localeCompare(b.name,'de'));
+    download('practices.json',JSON.stringify({generated:new Date().toISOString(),source:'116117 Arztsuche (manuelle Exporte)',count:records.length,without_coords:records.filter(r=>r.lat==null).length,records}),'application/json');
+    flash('dataMsg','practices.json exportiert.');
+  });
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change',()=>{readColors();renderMap()});
+}
+
+/* ---------- Start ---------- */
+readColors();loadState();loadUi();setupMap();wire();renderAll();loadData();
+</script>
+</body>
+</html>
